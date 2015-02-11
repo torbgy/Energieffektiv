@@ -8,9 +8,6 @@
   // This table contains addresses for all exception handlers
 	//
 	/////////////////////////////////////////////////////////////////////////////
-	CMU_BASE = 0x400c8000 // b a s e a d d r e s s o f CMU
-	CMU_HFPERCLKEN0 = 0x044 // o f f s e t from b a s e
-	CMU_HFPERCLKEN0_GPIO = 13 
 	
         .section .vectors
 	
@@ -73,65 +70,47 @@
 	      .long   dummy_handler
 
 	      .section .text
-
-	/////////////////////////////////////////////////////////////////////////////
-	//
-	// Reset handler
-  // The CPU will start executing here after a reset
-	//
-	/////////////////////////////////////////////////////////////////////////////
-
 	      .globl  _reset
 	      .type   _reset, %function
         .thumb_func
-_reset: 
-	// CLK to GPIO
-	ldr r1, =CMU_BASE
+
+_reset: 	
+	ldr r1, =CMU_BASE		// Aktiverer klokken
 	ldr r2, [r1, #CMU_HFPERCLKEN0]
 	mov r3, #1
 	lsl r3, r3, #CMU_HFPERCLKEN0_GPIO
 	orr r2, r2, r3
 	str r2, [r1, #CMU_HFPERCLKEN0]
 	
-	// High Drive Strength
-	mov r1, 0x2
-	ldr r2, =GPIO_PA_BASE
-	str r1, [r2, #GPIO_CTRL]
+	// Aktiverer lysene
+	ldr r1, =GPIO_PA_BASE
+	ldr r3, =GPIO_PC_BASE
+		
+	ldr r2, =0x2			// High Drive Strength
+	str r2, [r1]
+	
+	ldr r2, =0x55555555		//Setter pins 8-15 som output
+	str r2, [r1, #GPIO_MODEH]
 
-	//Pin 8-15 to output
-	ldr r1, =0x55555555
-	str r1, [r2, #GPIO_MODEH]
+	ldr r2, =0x33333333		//0-7 som input
+	str r2, [r3, #GPIO_MODEL]
 	
-	//Control led with buttons
-	ldr r1, =0x33333333
-	ldr r2, =GPIO_PC_BASE
-	str r1, [r2, #GPIO_MODEL]
+	ldr r2, =0xff			//Aktiv lav på buttons
+	str r2, [r3, #GPIO_DOUT]
 	
-	//Internal pull-up
-	ldr r1, =0xff
-	str r1, [r2, #GPIO_DOUT]
-	
-	//Buttons func
-	str r1, [r2, #GPIO_DIN]
+	loop:
+	ldr r4, [r3, #GPIO_DIN]		//Lese inn buttons
+	lsl r2, r4, #8			
+		
+	str r2, [r1, #GPIO_DOUT]
+	b loop
 
-	//Control Lights
-	str r1, [r2, #GPIO_DOUT]
-	
-	      b .  // do nothing
-	
-	/////////////////////////////////////////////////////////////////////////////
-	//
-  // GPIO handler
-  // The CPU will jump here when there is a GPIO interrupt
-	//
-	/////////////////////////////////////////////////////////////////////////////
-	
         .thumb_func
+
+
 gpio_handler:  
+	 // do nothing
 	
-	      b .  // do nothing
-	
-	/////////////////////////////////////////////////////////////////////////////
 	
         .thumb_func
 dummy_handler:  

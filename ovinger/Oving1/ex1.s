@@ -8,9 +8,6 @@
   // This table contains addresses for all exception handlers
 	//
 	/////////////////////////////////////////////////////////////////////////////
-	CMU_BASE = 0x400c8000 // b a s e a d d r e s s o f CMU
-	CMU_HFPERCLKEN0 = 0x044 // o f f s e t from b a s e
-	CMU_HFPERCLKEN0_GPIO = 13 
 	
         .section .vectors
 	
@@ -73,63 +70,60 @@
 	      .long   dummy_handler
 
 	      .section .text
-
-	/////////////////////////////////////////////////////////////////////////////
-	//
-	// Reset handler
-  // The CPU will start executing here after a reset
-	//
-	/////////////////////////////////////////////////////////////////////////////
-
 	      .globl  _reset
 	      .type   _reset, %function
         .thumb_func
-_reset: 
-	// CLK to GPIO
-	ldr r1, =CMU_BASE
+
+_reset: 	
+	ldr r1, =CMU_BASE		// Aktiverer klokken
 	ldr r2, [r1, #CMU_HFPERCLKEN0]
 	mov r3, #1
 	lsl r3, r3, #CMU_HFPERCLKEN0_GPIO
 	orr r2, r2, r3
 	str r2, [r1, #CMU_HFPERCLKEN0]
 	
-	// High Drive Strength
-	mov r1, 0x2
-	ldr r2, =GPIO_PA_BASE
-	str r1, [r2, #GPIO_CTRL]
+	ldr r1, =GPIO_PA_BASE
+	ldr r3, =GPIO_PC_BASE
+	ldr r5, =GPIO_BASE
 
-	//Pin 8-15 to output
-	ldr r1, =0x55555555
-	str r1, [r2, #GPIO_MODEH]
-	
-	//Control led with buttons
-	ldr r1, =0x33333333
-	ldr r2, =GPIO_PC_BASE
-	str r1, [r2, #GPIO_MODEL]
-	
-	//Internal pull-up
-	ldr r1, =0xff
-	str r1, [r2, #GPIO_DOUT]
-	
-	//Buttons func
-	str r1, [r2, #GPIO_DIN]
+	mov r2, #0x2			// High Drive Strength
+	str r2, [r1]
+	ldr r2, =0x55555555		//Setter pins 8-15 som output
+	str r2, [r1, #GPIO_MODEH]
+	ldr r2, =0x33333333		//0-7 som input
+	str r2, [r3, #GPIO_MODEL]
+	mov r2, #0xff			//Aktiv lav på buttons
+	str r2, [r3, #GPIO_DOUT]
 
-	//Control Lights
-	str r1, [r2, #GPIO_DOUT]
+	ldr r2, =0x22222222		// Aktiverer interrupt på på høy og lav kant. 
+	str r2, [r5, #GPIO_EXTIPSELL]
+	mov r2, #0xff
+	str r2, [r5, #GPIO_EXTIFALL]
+	str r2, [r5, #GPIO_EXTIRISE]
+	str r2, [r5, #GPIO_IEN]
+	ldr r2, =0x802
+	ldr r4, =ISER0
+	str r2, [r4]
+
+	mov r2, #0x6			//Sleep state
+	ldr r4, =SCR
+	str r2, [r4]
+	wfi				
 	
-	      b .  // do nothing
-	
-	/////////////////////////////////////////////////////////////////////////////
-	//
-  // GPIO handler
-  // The CPU will jump here when there is a GPIO interrupt
-	//
-	/////////////////////////////////////////////////////////////////////////////
-	
+
         .thumb_func
 gpio_handler:  
+	// r1, r3, r5 er brukt til base
+
+	ldr r2, [r5, #GPIO_IF]
+	str r2, [r5, #GPIO_IFC]	
+
+	ldr r2, [r3, #GPIO_DIN]		//Lese inn buttons
+	lsl r2, r2, #8			//Shifter 8 til siden.
+	str r2, [r1, #GPIO_DOUT]	//Aktiverer lysene
 	
-	      b .  // do nothing
+	
+	bx lr  // do nothing
 	
 	/////////////////////////////////////////////////////////////////////////////
 	

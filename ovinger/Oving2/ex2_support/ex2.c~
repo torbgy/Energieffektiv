@@ -43,7 +43,7 @@ void setupNVIC()
 	*GPIO_EXTIFALL = 0xff;
 	*GPIO_EXTIRISE = 0xff;
 	*GPIO_IEN = 0xff;
-	*ISER0 = 0x802;
+	*ISER0 = 0x1802;
   /* TODO use the NVIC ISERx registers to enable handling of interrupt(s)
      remember two things are necessary for interrupt handling:
       - the peripheral must generate an interrupt signal

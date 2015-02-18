@@ -6,12 +6,6 @@
 /* function to set up GPIO mode and interrupts*/
 void setupGPIO()
 {
-	*GPIO_EXTIPSELL = 0x22222222; /* Activets interrupts on high and low edge */
-	*GPIO_EXTIFALL = 0xff;
-	*GPIO_EXTIRISE = 0xff;
-	*GPIO_IEN = 0xff;
-
-
   /* TODO set input and output pins for the joystick */
     
   /* Example of HW access from C code: turn on joystick LEDs D4-D8
@@ -23,6 +17,7 @@ void setupGPIO()
 	*GPIO_PC_MODEL = 0x33333333; /* set pins A0-7 as input */
 	*GPIO_PC_DOUT = 0xff; /* Activ low on buttons */
 	*GPIO_PA_DOUT = 0x0700; /* turn on LEDs D4-D8 (LEDs are active low) */
+
 }
 
 

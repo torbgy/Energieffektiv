@@ -7,10 +7,10 @@
   TODO calculate the appropriate sample period for the sound wave(s) 
   you want to generate. The core clock (which the timer clock is derived
   from) runs at 14 MHz by default. Also remember that the timer counter
-  registers are 16 bits.
+  registers are 16 bits.  1400
 */
 /* The period between sound samples, in clock cycles */
-#define   SAMPLE_PERIOD   0
+#define   SAMPLE_PERIOD	  320   // Sample frequecy of ~44kHz
 
 /* Declaration of peripheral setup functions */
 void setupTimer(uint32_t period);
@@ -25,14 +25,13 @@ int main(void)
   setupGPIO();
   setupDAC();
   setupTimer(SAMPLE_PERIOD);
-  
   /* Enable interrupt handling */
   setupNVIC();
   
   /* TODO for higher energy efficiency, sleep while waiting for interrupts
      instead of infinite loop for busy-waiting
   */
-  while(1);
+  *SCR = 2;
 
   return 0;
 }

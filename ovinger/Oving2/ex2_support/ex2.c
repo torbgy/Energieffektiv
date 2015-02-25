@@ -10,10 +10,10 @@
   registers are 16 bits.  1400
 */
 /* The period between sound samples, in clock cycles */
-#define   SAMPLE_PERIOD	  320   // Sample frequecy of ~44kHz
+
 
 /* Declaration of peripheral setup functions */
-void setupTimer(uint32_t period);
+void setupTimer();
 void setupDAC();
 void setupNVIC();
 void setupGPIO();
@@ -22,18 +22,19 @@ void setupGPIO();
 int main(void) 
 {  
   /* Call the peripheral setup functions */
-  setupGPIO();
-  setupDAC();
-  setupTimer(SAMPLE_PERIOD);
+	setupGPIO();
+	setupDAC();
+	setupNVIC();
+	setupTimer();
   /* Enable interrupt handling */
-  setupNVIC();
+	
   
   /* TODO for higher energy efficiency, sleep while waiting for interrupts
      instead of infinite loop for busy-waiting
   */
-  *SCR = 2;
-
-  return 0;
+	*SCR = 2;
+	
+	return 0;
 }
 
 void setupNVIC()

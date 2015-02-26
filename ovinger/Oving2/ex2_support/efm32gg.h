@@ -69,6 +69,22 @@
 #define TIMER1_TOP ((volatile uint32_t*)(TIMER1_BASE + 0x1c))
 #define TIMER1_CNT ((volatile uint32_t*)(TIMER1_BASE + 0x24))
 
+// LETIMER0
+
+#define LETIMER0_BASE 0x40082000
+
+#define LETIMER0_CMD 	((volatile uint32_t*)(LETIMER0_BASE + 0xXXXX))
+#define LETIMER0_COMP0 	((volatile uint32_t*)(LETIMER0_BASE + 0xXXXX))
+#define LETIMER0_IF 	((volatile uint32_t*)(LETIMER0_BASE + 0xXXXX))
+#define LETIMER0_
+#define LETIMER0_
+#define LETIMER0_
+#define LETIMER0_
+
+
+
+
+
 // NVIC
 
 #define ISER0 ((volatile uint32_t*)0xe000e100)

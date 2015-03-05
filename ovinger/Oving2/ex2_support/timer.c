@@ -16,29 +16,16 @@ void setupTimer(){
   */  
 
 	*CMU_HFPERCLKEN0 |= CMU2_HFPERCLKEN0_TIMER1;
-	int a = 0;
-	*TIMER1_TOP = 14000000/(20*200);
-	*TIMER1_IEN = 1;
-	*TIMER1_CMD = 1;	
-	while (a<140000){
-		a++;
-		}
-	a = 0;
 	
-	*TIMER1_IEN = 0;
-	*TIMER1_CMD = 0;	
-	while (a<140000){
-		a++;
-		}
-	a = 0;
-	*TIMER1_TOP = 14000000/(20*440);
-	*TIMER1_IEN = 1;
-	*TIMER1_CMD = 1;
-	while (a<140000){
-		a++;
-		}
-	a = 0;
-	*TIMER1_IEN = 0;
-	*TIMER1_CMD = 0;
+	*TIMER1_TOP = 14000000/(20*200);
+/*	*TIMER1_IEN = 1;
+	*TIMER1_CMD = 1;*/
+
+// LETIMER0
+	*CMU_OSCENCMD = 0x40;	//Enable clock to be used
+	*CMU_LFACLKEN0 = 0x4;	//Enable prescaling
+	*CMU_LFAPRESC0 = 0x000;	//Prescaling
+	*CMU_HFCORECLKEN0 = 0x10;
+
 }
 

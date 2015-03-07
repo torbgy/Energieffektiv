@@ -13,7 +13,7 @@ void setupGPIO()
 	*GPIO_PC_MODEL = 0x33333333; /* set pins A0-7 as input */
 	*GPIO_PC_DOUT = 0xff; /* Activ low on buttons */
 	*GPIO_PA_DOUT = 0x0700; /* turn on LEDs D4-D8 (LEDs are active low) */
-
+	*GPIO_IFC = 1;
 }
 
 

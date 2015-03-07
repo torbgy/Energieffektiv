@@ -6,14 +6,15 @@
 /* 
   TODO 
 
-	Fikse LETIMER0
 
+	EM2, men da må bruke LETIMER0 pga HFCLK ikke aktiv
+	Skru av DAC for å spare energi?
+	EM3?
 
 */
 
 
-
-
+void setupLETIMER();
 void setupTimer();
 void setupDAC();
 void setupNVIC();
@@ -22,14 +23,17 @@ void setupGPIO();
 
 int main(void) 
 {  
-  
+  	
 	setupGPIO();
 	setupDAC();
-	setupNVIC();
-	setupTimer();
-
-	*SCR = 2;
 	
+	setupTimer();
+	setupLETIMER();
+	setupNVIC();
+
+	*SCR = 6;
+	__asm("WFI");
+
 	return 0;
 }
 
@@ -42,4 +46,8 @@ void setupNVIC()
 	*ISER0 = 0x4001802; //  Enables interrupt on LETIMER0, 	TIMER1, GPIO odd, GPIO even.
 		
 }
-
+void setupLETIMER(){
+	*LETIMER0_CTRL = 0x200;
+	*LETIMER0_REP0 = 0x00;	
+	*LETIMER0_COMP0 = 0x11ff;
+}

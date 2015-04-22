@@ -13,6 +13,9 @@
 #include <sys/mman.h>
 //sleep
 #include <unistd.h>
+//pow()
+#include <math.h>
+
 /*
     Screen size: 320x240
     Bits per pixel: 16 ( 5 red, 5 blue, 6 green ) 
@@ -28,7 +31,8 @@ void newApple(uint16_t* display,int fdrandom, int fdfb,pos* apple,pos* next, str
 
 
 int main(int argc, char *argv[])
-{
+{   
+    printf("Initializing game\n");
     //Devices to use
 	int fdfb = open("/dev/fb0", O_RDWR);
     int fdrandom = open("/dev/urandom", O_RDONLY);
@@ -50,8 +54,8 @@ int main(int argc, char *argv[])
     ioctl(fdfb, 0x4680, &rect);
     
 
-
-    int level = 1; 
+    // Internals
+    int speed = 2; 
     int quit = 1;
 
     // Dynamic snake 
@@ -68,14 +72,14 @@ int main(int argc, char *argv[])
     newApple(display,fdrandom,fdfb,&apple,&next,&rect);
 
 
+
     // Starting the game
-    printf("Initializing game\n");
     while(quit != 0){
 
         
 
+        
         readGamepad(fddriver, &dir);
-
 
 
         next.x = next.x + 10*dir.x;
@@ -83,9 +87,9 @@ int main(int argc, char *argv[])
 
         // In case it's running offscreen -> aka go trough the wall
         if(next.y >= 240 || next.y < 0){         
-            next.y = abs(next.y - 240);
+            next.y = abs(abs(next.y) - 240);
         }else if(next.x >= 320 || next.x < 0){    
-            next.x = abs(next.x - 320);
+            next.x = abs(abs(next.x) - 320);
         }
 
         
@@ -132,21 +136,16 @@ int main(int argc, char *argv[])
         rect.dx = next.x;
         rect.dy = next.y;
         for(x=rect.dx; x<rect.dx+9; x++){
-            for(y=rect.dy; y<rect.dy+9;y++){
+            for(y=rect.dy; y<rect.dy+8;y++){
                 display[320*y + x] = 0xffff;
             }
         }
         ioctl(fdfb, 0x4680, &rect);
 
-        // Printing current snake
-        printf("This is now the snake:\n");
-        for (x=0;x<snakeLength+1;x++){
-            printf("x:%d, y:%d \n",snake[x].x,snake[x].y );
-        }
 
-
-        sleep(1/level);
+        usleep(1000*100 - speed*200);
     }
+    printf("Your score: %d\n",snakeLength);
     free(snake);
     munmap(display,320*240*2);
     close(fdfb);
@@ -155,38 +154,31 @@ int main(int argc, char *argv[])
 	exit(EXIT_SUCCESS);
 }
 
-
-
 void readGamepad(int fddriver,pos *dir){
-/*
+ 
     uint8_t buffer;
     read(fddriver,&buffer,1);
-    printf("current buffer: %u\n", buffer);
-    
+  
     if (dir->x == 0){
         if(buffer == 1){
-            printf("LEFT\n");
             dir->y = 0;
             dir->x = -1;
         }
         else if(buffer == 3){
-            printf("RIGHT\n");
             dir->y = 0;
             dir->x = 1;
         }
     }else{
         if(buffer == 2){
-            printf("UP\n");
             dir->y = 1;
             dir->x = 0;
         }
         else if(buffer == 4){
-            printf("DOWN\n");
             dir->y = -1;
             dir->x = 0;
         }
     }
-*/   
+
     return;
 }
 
@@ -223,3 +215,5 @@ void newApple(uint16_t* display,int fdrandom, int fdfb,pos* apple,pos* next, str
     }
     return;
 }
+
+

@@ -34,14 +34,12 @@ static void __exit ourcleanupmodule(void);
 static int my_open(struct inode *inode, struct file *filp);
 static int my_release(struct inode *inode, struct file *filp);
 static ssize_t my_read(struct file *filp, char __user *buff, size_t count, loff_t *offp);
-static ssize_t my_write(struct file *filp, const char __user *buff, size_t count, loff_t *offp);
 static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs *regs);
 
 
 static struct file_operations my_fops = {
 	.owner = THIS_MODULE,
 	.read = my_read,
-	.write = my_write,
 	.open = my_open,
 	.release = my_release
 };
@@ -51,8 +49,8 @@ struct class *cl;
 dev_t devno = 1;
 
 void __iomem *gpio;
-uint8_t buttonV;
-uint32_t button;
+uint8_t button;
+
 //******NOTE*****
 //ARM = mmap all func support, ports unsigned int
 static int __init ourinitmodule(void){
@@ -129,74 +127,45 @@ static int my_remove(struct platform_device *dev){
 	//Empty remove function
 }*/
 
-static int my_open(struct inode *inode, struct file *filp){
-	return 0;
-}
-
-static int my_release(struct inode *inode, struct file *filp){
-	return 0;
-}
 
 static ssize_t my_read(struct file *filp, char __user *buff, size_t count, loff_t *offp){
-	printk("Went to my_read\n");
-	uint8_t data = buttonV; //ioread32(GPIO_PC_DIN);
-	copy_to_user(buff, &data, 1);
+	copy_to_user(buff, &button, 1);
 	return 1;
 }
 
-static ssize_t my_write(struct file *filp, const char __user *buff, size_t count, loff_t *offp){
-	/*char PID_array[5];
-	int PID = 0;
-
-	if(count > 5){
-		return -1;
-	}
-
-	copy_from_user(PID_array, buffer, count);
-	*/
-	return 0;
-}
 
 
 
 static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs * regs){
-	//button status
-	
+
+	uint32_t input;
 	iowrite32(0xff, GPIO_IFC);
-	button = ioread32(GPIO_PC_DIN) | 0xff00;
+	input = ioread32(GPIO_PC_DIN) | 0xff00;
 	
-	switch(button){
+	switch(input){
 		case (0xfffe) :
-			buttonV = 1;
-			printk("button value: %d\n", buttonV);
+			button = 1;
 			break;
 		case (0xfffd) :
-			buttonV = 2;
-			printk("button value: %d\n", buttonV);
+			button = 4;
 			break;
 		case (0xfffb) :
-			buttonV = 3;
-			printk("button value: %d\n", buttonV);
+			button = 3;
 			break;
 		case (0xfff7) :
-			buttonV = 4;
-			printk("button value: %d\n", buttonV);
+			button = 2;
 			break;
 		case (0xffef) :
-			buttonV = 5;
-			printk("button value: %d\n", buttonV);
+			button = 5;
 			break;
 		case (0xffdf) :
-			buttonV = 6;
-			printk("button value: %d\n", buttonV);
+			button = 6;
 			break;
 		case (0xffbf) :
-			buttonV = 7;
-			printk("button value: %d\n", buttonV);
+			button = 7;
 			break;
 		case (0xff7f) :
-			buttonV = 8;
-			printk("button value: %d\n", buttonV);
+			button = 8;
 			break;
 	}
 
@@ -204,6 +173,14 @@ static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs * reg
 	return IRQ_HANDLED;
 }
 
+
+static int my_open(struct inode *inode, struct file *filp){
+	return 0;
+}
+
+static int my_release(struct inode *inode, struct file *filp){
+	return 0;
+}
 
 /*static struct platform_driver my_driver = { //my driver decleared not used
 	.probe = my_probe,

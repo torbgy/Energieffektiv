@@ -17,18 +17,21 @@
 #include <linux/fs.h>
 #include <fcntl.h>
 #include <signal.h>
+#define SIG_NUM 50 // Signal number
 
 typedef struct {
     int x;
     int y;
 }pos;
 
-void sig_handler(int sig_num);
+
+void sig_handler(int sig_num, siginfo_t *info,void *unused);
 void newApple(uint16_t* display,int fd_random, int fd_fb,pos* apple,pos* next, struct fb_copyarea *rect);
 
 pos dir = {1,0};
-int speed = 2; 
-int quit = 0;
+int speed = 1; 
+int reset = 0;
+int pauseGame = 1;
 int fd_gamepad;
 int fd_fb;
 int fd_random;
@@ -39,117 +42,162 @@ int main(int argc, char *argv[])
     //Devices to use
 	fd_fb = open("/dev/fb0", O_RDWR);
     fd_random = open("/dev/urandom", O_RDONLY);
-    fd_gamepad = open("/dev/gamepad", O_RDONLY);
+    fd_gamepad = open("/dev/gamepad", O_WRONLY);
 
+    if (fd_gamepad < 0 || fd_random < 0 || fd_fb < 0){
+        printf("game: Error opening one of the drivers\n");
 
-    // Counters
-	int x,y; 
-
-
-    // Initialize a black screen & memory-map
-	uint16_t* display = (uint16_t*)mmap(0,320*240*2, PROT_WRITE|PROT_READ, MAP_SHARED, fd_fb, 0);
-	struct fb_copyarea rect = {dx:0,dy:0,width:320,height:240};
-    for (x=0;x<320;x++){
-        for(y=0;y<240;y++){
-            display[320*y + x] = 0x0000;
-        }
     }
-    ioctl(fd_fb, 0x4680, &rect);
-    
-
-
-
-
-    // Dynamic snake 
-    unsigned int snakeLength = 0;
-    pos* snake = malloc(snakeLength+1*sizeof(pos));
-
-
-    // Positions + initial snake
-    
-    pos apple;
-    pos next = { 160,120 };
-    rect.width = 10; 
-    rect.height = 10;
-    newApple(display,fd_random,fd_fb,&apple,&next,&rect);
-
+    // Memory Map
+    uint16_t* display = (uint16_t*)mmap(0,320*240*2, PROT_WRITE|PROT_READ, MAP_SHARED, fd_fb, 0);
     // Signals
-    signal(SIGIO, sig_handler); 
-    fcntl(fd_gamepad, F_SETOWN, getpid());
-    int oflags = fcntl(fd_gamepad, F_GETFL);
-    fcntl( fd_gamepad, F_SETFL, oflags | FASYNC );
+    struct sigaction sig;
+    sig.sa_sigaction = sig_handler;
+    sig.sa_flags = SA_SIGINFO;
+    sigaction(SIG_NUM,&sig,NULL);
+    char buf[10];
+    sprintf(buf,"%i",getpid());
+    write(fd_gamepad,buf,11);
 
+    // Counters & internals
+	int x,y,i; 
+    pos snake[24*32];
+    unsigned int snakeLength;
+    struct fb_copyarea rect;
+    pos next;
+    pos apple;
 
-    // Starting the game
-    while(quit == 0){        
+    while(1){
+        reset = 0;
+        pauseGame = 1;
+        snakeLength = 0;
 
-
-        next.x = next.x + 10*dir.x;
-        next.y = next.y + 10*dir.y;
-
-        // In case it's running offscreen -> aka go trough the wall
-        if(next.y >= 240 || next.y < 0){         
-            next.y = abs(abs(next.y) - 240);
-        }else if(next.x >= 320 || next.x < 0){    
-            next.x = abs(abs(next.x) - 320);
-        }
-
-        
-        // 3 different cases
-        if ( display[next.y*320+next.x] == 0xffff){
-
-            printf("Game over!\n");
-            break;
-        }
-        else if(next.x == apple.x && next.y == apple.y){
-            // Create a new apple
-            newApple(display,fd_random,fd_fb,&apple,&next,&rect);
-        
-
-            // Update snake
-            snakeLength++;
-            realloc(snake,snakeLength*sizeof(pos));
-            for (x=snakeLength;x>0;x--){
-                snake[x] = snake[x-1];
+        // Initialize a black screen	
+        rect.dx = 0;
+        rect.dy = 0;
+        rect.width = 320;
+        rect.height = 240;
+        for (x=0;x<320;x++){
+            for(y=0;y<240;y++){
+                display[320*y + x] = 0x0000;
             }
-            snake[0]=next;
         }
-        else{
 
-            // Delete tail visual
-            rect.dx = snake[snakeLength].x;
-            rect.dy = snake[snakeLength].y;
-            for(x=rect.dx; x<rect.dx+10; x++){
-                for(y=rect.dy; y<rect.dy+10;y++){
-                    display[320*y + x] = 0x0000;
+        //Initial Snake;
+        next.x = 140;
+        next.y = 120;
+        for (i=0;i<3;i++){
+            
+            next.x = next.x + 10*dir.x;
+            next.y = next.y + 10*dir.y;
+
+            snake[2-i] = next;
+            snakeLength++;
+
+            for(x=next.x; x<next.x+9; x++){
+                for(y=next.y; y<next.y+8;y++){
+                    display[320*y + x] = 0xffff;
+                }
+            }            
+        }
+        ioctl(fd_fb, 0x4680, &rect);
+        
+
+
+
+        // Inital apple
+        
+        rect.width = 10; 
+        rect.height = 10;
+        newApple(display,fd_random,fd_fb,&apple,&next,&rect);
+
+
+
+        // Starting the game
+        while(reset == 0){        
+
+
+            next.x = next.x + 10*dir.x;
+            next.y = next.y + 10*dir.y;
+
+            // In case it's running offscreen -> aka go trough the wall
+            if(next.y >= 240 || next.y < 0){         
+                next.y = abs(abs(next.y) - 240);
+            }else if(next.x >= 320 || next.x < 0){    
+                next.x = abs(abs(next.x) - 320);
+            }
+
+            
+            // 3 different cases
+            if ( display[next.y*320+next.x] == 0xffff){
+
+                printf("Game over!\n");
+                pauseGame = 1;
+                reset = 1;
+               
+            }
+            else if(next.x == apple.x && next.y == apple.y){
+                // Create a new apple
+                newApple(display,fd_random,fd_fb,&apple,&next,&rect);
+            
+
+                // Update snake
+                snakeLength++;
+                /*
+                realloc(snake,snakeLength*sizeof(pos));
+                */
+                for (x=snakeLength-1;x>0;x--){
+                    snake[x] = snake[x-1];
+                }
+                snake[0]=next;
+            }
+            else{
+
+                // Delete tail visual
+                rect.dx = snake[snakeLength-1].x;
+                rect.dy = snake[snakeLength-1].y;
+                for(x=rect.dx; x<rect.dx+10; x++){
+                    for(y=rect.dy; y<rect.dy+10;y++){
+                        display[320*y + x] = 0x0000;
+                    }
+                }
+                ioctl(fd_fb, 0x4680, &rect);
+
+                //Update snake
+                for (x=snakeLength-1;x>0;x--){
+                    snake[x] = snake[x-1];
+                }
+                snake[0] = next;
+
+
+            }
+            //Generate head
+            rect.dx = next.x;
+            rect.dy = next.y;
+            for(x=rect.dx; x<rect.dx+9; x++){
+                for(y=rect.dy; y<rect.dy+8;y++){
+                    display[320*y + x] = 0xffff;
                 }
             }
             ioctl(fd_fb, 0x4680, &rect);
 
-            //Update snake
-            for (x=snakeLength;x>0;x--){
-                snake[x] = snake[x-1];
+            printf("current snake: snakeLength:%d\n",snakeLength);
+            for(x=0;x<snakeLength;x++){
+                printf("[%d,%d]\n",snake[x].x,snake[x].y );
             }
-            snake[0] = next;
+            usleep(1000*100 - speed*10*1000);
+            while(pauseGame == 1){
+                usleep(1000*100);
+
+            }
 
 
         }
-        //Generate head
-        rect.dx = next.x;
-        rect.dy = next.y;
-        for(x=rect.dx; x<rect.dx+9; x++){
-            for(y=rect.dy; y<rect.dy+8;y++){
-                display[320*y + x] = 0xffff;
-            }
-        }
-        ioctl(fd_fb, 0x4680, &rect);
 
+        printf("Your score: %d\n",snakeLength);
+        
 
-        usleep(1000*100 - speed*200);
     }
-
-    printf("Your score: %d\n",snakeLength);
-    free(snake);
     munmap(display,320*240*2);
     close(fd_fb);
     close(fd_random);
@@ -157,10 +205,10 @@ int main(int argc, char *argv[])
 	exit(EXIT_SUCCESS);
 }
 
-void sig_handler(int sig_num){
 
-    uint8_t buffer;
-    read(fd_gamepad,&buffer,1);
+void sig_handler(int sig_num, siginfo_t *info, void *unused){
+
+    uint8_t buffer = info->si_int;
 
     switch(buffer | 0xff00){
         case (0xfffe) : // 1
@@ -171,7 +219,7 @@ void sig_handler(int sig_num){
             return;
         case (0xfffd) : // 2
             if(dir.y == 0){
-                dir.y = 1;
+                dir.y = -1;
                 dir.x = 0; 
             }
             return;
@@ -183,22 +231,29 @@ void sig_handler(int sig_num){
             return;
         case (0xfff7) : // 4
             if(dir.y == 0){
-                dir.y = -1;
+                dir.y = 1;
                 dir.x = 0;
             }
             return;
         case (0xffef) : // 5
+            pauseGame = abs(pauseGame-1);
             return;
             
         case (0xffdf) : // 6
-            speed++;
+            if(speed < 9){
+                speed++;
+            }
+            
             return;
             
         case (0xffbf) : // 7
-            quit = 1;
+            reset = 1;
             return;
         case (0xff7f) : // 8
-            speed--;
+            if(speed > 1){
+                speed--;    
+            }
+            
             return;
         default:
             return;    

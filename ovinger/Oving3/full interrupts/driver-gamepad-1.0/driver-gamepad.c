@@ -12,53 +12,44 @@
 #include <linux/device.h>
 #include <linux/irqreturn.h>
 #include <linux/moduleparam.h>
-#include <asm/siginfo.h>
-#include <asm/signal.h>
+// Signals
+#include <asm/siginfo.h> // siginfo
+#include <asm/signal.h>	
+#include <linux/sched.h> // find_task_by_pid_type 
+#include <linux/rcupdate.h> // rcu_read_lock
+#include <linux/pid.h> // PID-ns
 
 #include "efm32gg.h"
 
 #define DRIVER_NAME "gamepad"
+#define SIG_NUM 50 //Signal number
 
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Platform driver module demo");
-//MODULE_DEVICE_TABLE(of, my_of_match);
 
 
 /*Base functions */
 static int __init ourinitmodule(void);
 static void __exit ourcleanupmodule(void);
-static int gamepad_open(struct inode *inode, struct file *filp);
-static int gamepad_release(struct inode *inode, struct file *filp);
-static ssize_t gamepad_read(struct file *filp, char __user *buff, size_t count, loff_t *offp);
-static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs *regs);
-static int gamepad_fasync(struct file *filp,int fd,int mode);
+static int gamepad_open(struct inode*, struct file*);
+static int gamepad_release(struct inode*, struct file*);
+static irqreturn_t interrupt_handler(int, void*, struct pt_regs*);
+static ssize_t gamepad_write(struct file*,const char __user*,size_t,loff_t*);
 
 static struct file_operations my_fops = {
 	.owner = THIS_MODULE,
-	.read = gamepad_read,
+	.write = gamepad_write,
 	.open = gamepad_open,
-	.release = gamepad_release,
-	.fasync = gamepad_fasync,
+	.release = gamepad_release	
 };
 
 struct cdev my_cdev;
 struct class *cl;
 dev_t devno = 1;
 void __iomem *gpio;
-struct fasync_struct* async_que;
 
-static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs * regs){
-
-	iowrite32(0xff, GPIO_IFC);
-	if(async_que){
-		kill_fasync(SIGIO,&async_que,POLL_IN);
-	}
-	return IRQ_HANDLED;
-}
-
-static int gamepad_fasync(struct file *filp,int fd,int mode){
-	return fasync_helper(fd,filp,mode,&async_que);
-}
+// Signals
+int game_pid = 0;
+struct siginfo info;
+struct task_struct *t; 
 
 static int __init ourinitmodule(void){
 	
@@ -70,35 +61,33 @@ static int __init ourinitmodule(void){
 	check_mem_region(GPIO_BASE, GPIO_SIZE);
 	request_mem_region(GPIO_BASE,GPIO_SIZE, DRIVER_NAME);
 	
-	// Dynamic Memory setup
-	gpio = GPIO_BASE;
-	ioremap_nocache(gpio, GPIO_SIZE);
-
 	// GPIO setup
 	iowrite32(0x33333333, GPIO_PC_MODEL);
 	iowrite32(0xff, GPIO_PC_DOUT);
 	iowrite32(0x22222222, GPIO_EXTIPSELL);
 
-
-
 	// Interrupt setup
 	iowrite32(0xff, GPIO_IEN);
 	iowrite32(0xff, GPIO_IFC);
 	iowrite32(0xFF, GPIO_EXTIFALL);
-	request_irq(17, (irq_handler_t)interrupt_handler, 0, DRIVER_NAME, &my_cdev); //17 & 18 = GPIO EVEN & ODD
-	request_irq(18, (irq_handler_t)interrupt_handler, 0, DRIVER_NAME, &my_cdev);
+	request_irq(17, (irq_handler_t)interrupt_handler, 0, DRIVER_NAME, NULL); //17 & 18 = GPIO EVEN & ODD
+	request_irq(18, (irq_handler_t)interrupt_handler, 0, DRIVER_NAME, NULL);
 
-	
+
+	// Signals setup
+	memset(&info,0,sizeof(struct siginfo));
+	info.si_signo = SIG_NUM;
+	info.si_code = SI_QUEUE;
+
+
 	// Actives the driver
-	cdev_init(&my_cdev,&my_fops); 
-	if(cdev_add(&my_cdev, devno, 1) < 0){
-		printk(KERN_ERR "\n driver-gamepad: cdev_add failed \n");
-
-	}
-	my_cdev.owner = THIS_MODULE;
-	cdev_add(&my_cdev, devno, 1);
 	cl = class_create(THIS_MODULE, DRIVER_NAME);
 	device_create(cl,NULL,devno,NULL, DRIVER_NAME);
+
+	cdev_init(&my_cdev,&my_fops);
+	my_cdev.owner = THIS_MODULE;
+	cdev_add(&my_cdev, devno, 1);
+
 
 
 	return 0;
@@ -116,26 +105,39 @@ static void __exit ourcleanupmodule(void){
 	free_irq(18, NULL);
 
 	// Release GPIO
-	iounmap(gpio);
 	release_mem_region(GPIO_BASE, GPIO_SIZE);
 	unregister_chrdev_region(&devno,1);
 
 	return;
 }
 
-/*static int my_probe(struct platform_device *dev){
-	//Empty probe function
+
+static irqreturn_t interrupt_handler(int irq, void *dev_id, struct pt_regs * regs){
+ 
+	info.si_int = ioread32(GPIO_PC_DIN);
+	send_sig_info(SIG_NUM,&info,t); 
+	iowrite32(0xff, GPIO_IFC);
+
+	return IRQ_HANDLED;
 }
 
-static int my_remove(struct platform_device *dev){
-	//Empty remove function
-}*/
+static ssize_t gamepad_write(struct file *filp,const char __user *buf,size_t count,loff_t *ppos){
+	char mybuf[10];
+	copy_from_user(mybuf,buf,count);
+	sscanf(mybuf,"%d",&game_pid);
+	rcu_read_lock();
+	t = pid_task(find_pid_ns(game_pid, &init_pid_ns),PIDTYPE_PID);
+	if(t == NULL){
+		printk("Error in gamepad_write\n");
+		rcu_read_unlock();
+		iowrite32(0xff, GPIO_IFC);
+		return -1;
+	}
+	rcu_read_unlock();
+	
 
 
-static ssize_t gamepad_read(struct file *filp, char __user *buff, size_t count, loff_t *offp){
-	uint32_t input = ioread32(GPIO_PC_DIN);
-	copy_to_user(buff, &input, 1);
-	return 1;
+	return 0;
 }
 
 static int gamepad_open(struct inode *inode, struct file *filp){
@@ -148,3 +150,5 @@ static int gamepad_release(struct inode *inode, struct file *filp){
 
 module_init(ourinitmodule);
 module_exit(ourcleanupmodule);
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Gamepad Driver");
